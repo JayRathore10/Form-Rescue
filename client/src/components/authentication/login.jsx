@@ -1,7 +1,11 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+
 import { signin, signup } from "../../services/auth";
 
 function Login({ onLogin }) {
+  const navigate = useNavigate();
+
   const [activeTab, setActiveTab] = useState("login");
 
   const [name, setName] = useState("");
@@ -46,13 +50,16 @@ function Login({ onLogin }) {
 
       // Send backend response to parent
       onLogin?.(response);
+
+      // Redirect to home page after successful login
+      navigate("/", { replace: true });
     } catch (error) {
       console.error("Login failed:", error);
 
       setFormMessage(
         error?.response?.data?.message ||
-        error?.message ||
-        "Login failed. Please check your email and password."
+          error?.message ||
+          "Login failed. Please check your email and password."
       );
     } finally {
       setLoading(false);
@@ -66,8 +73,7 @@ function Login({ onLogin }) {
     event.preventDefault();
     setFormMessage("");
 
-    const emailInput =
-      event.currentTarget.elements["signup-email"];
+    const emailInput = event.currentTarget.elements["signup-email"];
 
     if (
       !name.trim() ||
@@ -107,13 +113,16 @@ function Login({ onLogin }) {
 
       // Send backend response to parent
       onLogin?.(response);
+
+      // Redirect to home page after successful signup
+      navigate("/", { replace: true });
     } catch (error) {
       console.error("Signup failed:", error);
 
       setFormMessage(
         error?.response?.data?.message ||
-        error?.message ||
-        "Signup failed. Please try again."
+          error?.message ||
+          "Signup failed. Please try again."
       );
     } finally {
       setLoading(false);
@@ -122,8 +131,6 @@ function Login({ onLogin }) {
 
   return (
     <div className="flex min-h-screen w-full flex-col overflow-x-hidden bg-[#0d0d2c] text-white leading-[normal]">
-
-      {/* MAIN APPLICATION */}
       <main
         className="
           relative
@@ -136,7 +143,6 @@ function Login({ onLogin }) {
           bg-[#0d0d2c]
         "
       >
-
         {/* RIGHT DECORATION */}
         <div
           className="
@@ -154,7 +160,6 @@ function Login({ onLogin }) {
             after:absolute
             after:inset-0
             after:rounded-[inherit]
-            after:content-['']
             after:bg-[rgba(81,75,180,0.12)]
             after:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.015)]
             max-[900px]:right-[-70px]
@@ -179,9 +184,7 @@ function Login({ onLogin }) {
             max-[430px]:h-[62px]
           "
         >
-
           <div className="flex items-center gap-9 max-[600px]:gap-[18px]">
-
             <div
               className="
                 text-[23px]
@@ -191,7 +194,6 @@ function Login({ onLogin }) {
               "
             >
               formrescue
-
               <sup className="relative top-[-8px] ml-0.5 text-[6px]">
                 ™
               </sup>
@@ -214,11 +216,9 @@ function Login({ onLogin }) {
             >
               How it works
             </button>
-
           </div>
 
           <div className="flex items-center gap-[9px] max-[430px]:gap-[5px]">
-
             <button
               type="button"
               className="
@@ -272,9 +272,7 @@ function Login({ onLogin }) {
             >
               Sign up
             </button>
-
           </div>
-
         </nav>
 
         {/* CENTER */}
@@ -293,7 +291,6 @@ function Login({ onLogin }) {
             max-[600px]:py-6
           "
         >
-
           <div
             className="
               mb-[26px]
@@ -309,7 +306,6 @@ function Login({ onLogin }) {
             "
           >
             formrescue
-
             <sup
               className="
                 relative
@@ -340,10 +336,8 @@ function Login({ onLogin }) {
               max-[430px]:pb-[22px]
             "
           >
-
             {/* TABS */}
             <div className="mb-[22px] flex w-full border-b border-white/[0.09]">
-
               <button
                 type="button"
                 className={`relative h-[42px] flex-1 cursor-pointer border-0 bg-transparent text-[14px] hover:text-white ${
@@ -357,9 +351,7 @@ function Login({ onLogin }) {
 
                 <span
                   className={`absolute right-0 bottom-[-1px] left-0 h-0.5 bg-white ${
-                    activeTab === "login"
-                      ? ""
-                      : "hidden"
+                    activeTab === "login" ? "" : "hidden"
                   }`}
                 />
               </button>
@@ -377,13 +369,10 @@ function Login({ onLogin }) {
 
                 <span
                   className={`absolute right-0 bottom-[-1px] left-0 h-0.5 bg-white ${
-                    activeTab === "signup"
-                      ? ""
-                      : "hidden"
+                    activeTab === "signup" ? "" : "hidden"
                   }`}
                 />
               </button>
-
             </div>
 
             {/* MESSAGE */}
@@ -408,15 +397,12 @@ function Login({ onLogin }) {
 
             {/* LOGIN */}
             {activeTab === "login" ? (
-
               <form
                 className="flex flex-col gap-[15px]"
                 onSubmit={handleSubmit}
               >
-
                 {/* EMAIL */}
                 <div className="flex flex-col gap-[7px]">
-
                   <label
                     htmlFor="email"
                     className="text-[13px] font-medium text-[#bbb9cf]"
@@ -454,12 +440,10 @@ function Login({ onLogin }) {
                       setFormMessage("");
                     }}
                   />
-
                 </div>
 
                 {/* PASSWORD */}
                 <div className="flex flex-col gap-[7px]">
-
                   <label
                     htmlFor="password"
                     className="text-[13px] font-medium text-[#bbb9cf]"
@@ -498,7 +482,6 @@ function Login({ onLogin }) {
                       setFormMessage("");
                     }}
                   />
-
                 </div>
 
                 {/* LOGIN BUTTON */}
@@ -546,21 +529,16 @@ function Login({ onLogin }) {
                 >
                   Forgot your password?
                 </button>
-
               </form>
-
             ) : (
-
               /* SIGN UP */
               <form
                 className="flex flex-col gap-[15px]"
                 onSubmit={handleSignup}
                 noValidate
               >
-
                 {/* NAME */}
                 <div className="flex flex-col gap-[7px]">
-
                   <label
                     htmlFor="signup-name"
                     className="text-[13px] font-medium text-[#bbb9cf]"
@@ -598,12 +576,10 @@ function Login({ onLogin }) {
                       setFormMessage("");
                     }}
                   />
-
                 </div>
 
                 {/* EMAIL */}
                 <div className="flex flex-col gap-[7px]">
-
                   <label
                     htmlFor="signup-email"
                     className="text-[13px] font-medium text-[#bbb9cf]"
@@ -641,12 +617,10 @@ function Login({ onLogin }) {
                       setFormMessage("");
                     }}
                   />
-
                 </div>
 
                 {/* PASSWORD */}
                 <div className="flex flex-col gap-[7px]">
-
                   <label
                     htmlFor="signup-password"
                     className="text-[13px] font-medium text-[#bbb9cf]"
@@ -685,12 +659,10 @@ function Login({ onLogin }) {
                       setFormMessage("");
                     }}
                   />
-
                 </div>
 
                 {/* CONFIRM PASSWORD */}
                 <div className="flex flex-col gap-[7px]">
-
                   <label
                     htmlFor="confirm-password"
                     className="text-[13px] font-medium text-[#bbb9cf]"
@@ -728,7 +700,6 @@ function Login({ onLogin }) {
                       setFormMessage("");
                     }}
                   />
-
                 </div>
 
                 {/* SIGNUP BUTTON */}
@@ -758,10 +729,8 @@ function Login({ onLogin }) {
                 >
                   {loading ? "Creating account..." : "Sign up"}
                 </button>
-
               </form>
             )}
-
           </div>
 
           <p className="my-[18px] mb-10 text-center text-xs text-[#aaa7c0]">
@@ -769,13 +738,10 @@ function Login({ onLogin }) {
               ? "Sign in to save and manage your forms."
               : "Create an account to save your forms."}
           </p>
-
         </section>
-
       </main>
     </div>
   );
 }
 
 export default Login;
-
