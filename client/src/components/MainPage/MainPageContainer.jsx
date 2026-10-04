@@ -1,9 +1,4 @@
-/**
- * Lavender outer container.
- *  - top   -> full-width panel (navbar + hero + upload strip)
- *  - left  -> Generated Form panel
- *  - right -> AI Checklist panel
- */
+
 import AiChecklist from "./AiChecklistSection";
 import GeneratedForm from "./GeneratedFormSection";
 import TopPanel from "./TopPanel";
