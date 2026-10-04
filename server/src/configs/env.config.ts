@@ -2,7 +2,10 @@ import dotenv from 'dotenv';
 dotenv.config({path:`.env.${process.env.NODE_ENV || 'development'}.local`});
 
 export const{
-    MONGODB_URI,
-    FRONTEND_URL,
-    
-}=process.env     
+  FRONTEND  , 
+  MONGODB_URI , 
+  JWT_SECRET , 
+  SALT_ROUND , 
+  OLLAMA_URL , 
+  GEMINI_API_KEY
+} = process.env;    

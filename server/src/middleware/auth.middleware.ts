@@ -1,35 +1,74 @@
-import jwt from "jsonwebtoken";
-import { Request, Response, NextFunction } from "express";
+import {Request,Response,NextFunction} from 'express';
+import { JWT_SECRET } from '../configs/env.config';
+import jwt from 'jsonwebtoken';
+import { User } from '../models/user.model';
 
-export function authMiddleware(
-  req: Request,
-  res: Response,
-  next: NextFunction
-) {
-  const token = req.headers.authorization;
 
-  if (!token) {
-    return res
-      .status(401)
-      .json({
-        message: "Unauthorized"
-      });
-  }
 
-  try {
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET as string
-    );
+interface userpayload {
+    id: string;
+    email: string;
+}
 
-    // req.user = decoded;
+interface AuthUser {
+    id: string;
+    email: string;
+}
 
-    next();
-  } catch (error) {
-    return res
-      .status(401)
-      .json({
-        message: "Invalid token"
-      });
-  }
+interface authRequest extends Request {
+    user?: AuthUser;
+}
+
+export const isUserLoggedIn=async(req:authRequest,res:Response,next:NextFunction)=>{
+    try{
+        const token=req.cookies?.token;
+        if(!token){
+            return res.status(401).json({
+                success:false,
+                message:"token not found",
+            });
+        }
+        //after verificaton it the data that we set in token is easily identifiable by decodeddata
+        const decodedData=jwt.verify(token,JWT_SECRET as string)as userpayload;
+        const user=await User.findOne({email:decodedData.email}).select("-password");
+        if(!user){
+            return res.status(404).json({
+                success:false,
+                message:"please do a sign up first",
+            });
+        }
+        req.user=user;
+        next();
+    }catch(err){
+        next(err);
+    }
+}
+
+
+
+
+
+
+export const isAdminLoggedIn=async(req:authRequest,res:Response,next:NextFunction)=>{
+    try{
+        const token=req.cookies?.token;
+        if(!token){
+            return res.status(401).json({
+                success:false,
+                message:"token not found",
+            });
+        }
+        const decodedData=jwt.verify(token,JWT_SECRET as string) as userpayload;
+        const user=await User.findOne({email:decodedData.email}).select("-password");
+        if(!user || user.role!== 'ADMIN'){
+            return res.status(403).json({
+                success:false,
+                message:"Access Denied",
+            });
+        }
+        req.user=user;
+        next();
+    }catch(err){
+        next(err);
+    }
 }
