@@ -1,20 +1,18 @@
-/**
- * Lavender outer container.
- *  - top   -> full-width panel (navbar + hero + upload strip)
- *  - left  -> Generated Form panel
- *  - right -> AI Checklist panel
- */
 import { useState } from "react";
+
 import AiChecklist from "./AiChecklistSection";
 import GeneratedForm from "./GeneratedFormSection";
-import { toFieldId } from "../../utils/formUtils";
 import TopPanel from "./TopPanel";
 import AuthModal from "./AuthModal";
+
+import { toFieldId } from "../../utils/formUtils";
+
 import {
     analyzeFormFile,
     uploadFormFile,
     getFieldAiExplanation,
 } from "../../services/mainpage";
+
 import {
     signin,
     signup,
@@ -23,125 +21,244 @@ import {
 } from "../../services/auth";
 
 export default function MainPageContainer() {
-    const [formData, setFormData] = useState(null); // backend payload
-    const [formKey, setFormKey] = useState(0); // remounts the form on a new scan
-    const [values, setValues] = useState({}); // { [fieldId]: typed value }
-    const [uploadedDocs, setUploadedDocs] = useState({}); // { [docName]: fileName }
+    // Form state
+    const [formData, setFormData] = useState(null);
+    const [formKey, setFormKey] = useState(0);
+    const [values, setValues] = useState({});
+    const [uploadedDocs, setUploadedDocs] = useState({});
     const [activeId, setActiveId] = useState(null);
+
+    // Loading / error state
     const [isUploading, setIsUploading] = useState(false);
     const [errorMessage, setErrorMessage] = useState(null);
 
     // Auth state
-    const [currentUser, setCurrentUser] = useState(() => getSavedUser());
+    const [currentUser, setCurrentUser] = useState(() =>
+        getSavedUser()
+    );
     const [authModalOpen, setAuthModalOpen] = useState(false);
     const [authMode, setAuthMode] = useState("signin");
 
-    // AI Explanation state
+    // AI explanation state
     const [aiExplanation, setAiExplanation] = useState(null);
     const [isExplaining, setIsExplaining] = useState(false);
 
+    // ---------------------------------------
+    // Analyze form
+    // ---------------------------------------
+
     const handleAnalyze = async (file) => {
+        if (!file) return;
+
         setIsUploading(true);
         setErrorMessage(null);
+
         try {
             const data = await analyzeFormFile(file);
+
             if (!data) {
-                throw new Error("No form structure returned by backend");
+                throw new Error(
+                    "No form structure returned by backend."
+                );
             }
+
             const initial = {};
-            (data.fields || []).forEach((f) => {
-                initial[toFieldId(f.name)] = f.value ?? "";
+
+            (data.fields || []).forEach((field) => {
+                initial[toFieldId(field.name)] =
+                    field.value ?? "";
             });
+
             setFormData(data);
             setValues(initial);
             setUploadedDocs({});
             setActiveId(null);
-            setFormKey((k) => k + 1);
+            setAiExplanation(null);
+
+            // Force GeneratedForm to remount
+            setFormKey((key) => key + 1);
         } catch (err) {
             console.error("Analyze failed:", err);
+
             setErrorMessage(
-                err?.message || "Failed to analyze form. Please ensure the backend is running."
+                err?.message ||
+                    "Failed to analyze form. Please make sure the backend is running."
             );
         } finally {
             setIsUploading(false);
         }
     };
 
+    // ---------------------------------------
+    // Remove current form
+    // ---------------------------------------
+
     const handleRemove = () => {
         setFormData(null);
         setValues({});
         setUploadedDocs({});
         setActiveId(null);
-        setErrorMessage(null);
         setAiExplanation(null);
-        setFormKey((k) => k + 1);
+        setErrorMessage(null);
+
+        setFormKey((key) => key + 1);
     };
 
-    const handleChange = (id, value) => setValues((prev) => ({ ...prev, [id]: value }));
+    // ---------------------------------------
+    // Form field change
+    // ---------------------------------------
+
+    const handleChange = (id, value) => {
+        setValues((prev) => ({
+            ...prev,
+            [id]: value,
+        }));
+    };
+
+    // ---------------------------------------
+    // Field focus + AI explanation
+    // ---------------------------------------
 
     const handleFieldFocus = async (field) => {
+        if (!field) return;
+
         setActiveId(field.id);
-        if (!field?.label && !field?.name) return;
+
+        const fieldName = field.label || field.name;
+
+        if (!fieldName) return;
+
         setIsExplaining(true);
+
         try {
             const text = await getFieldAiExplanation({
-                fieldName: field.label || field.name,
+                fieldName,
                 fieldType: field.type,
-                formTitle: formData?.title || "Application Form",
+                formTitle:
+                    formData?.title || "Application Form",
                 currentValue: values[field.id] || "",
             });
+
             setAiExplanation({
                 fieldId: field.id,
-                fieldName: field.label || field.name,
+                fieldName,
                 text,
             });
         } catch (err) {
-            console.warn("AI explanation request failed:", err);
+            console.warn(
+                "AI explanation request failed:",
+                err
+            );
         } finally {
             setIsExplaining(false);
         }
     };
 
+    // ---------------------------------------
+    // Document upload
+    // ---------------------------------------
+
     const handleDocumentUpload = async (name, file) => {
+        if (!file) return;
+
         try {
-            setUploadedDocs((prev) => ({ ...prev, [name]: file.name }));
-            // Also upload file to backend server storage
+            // Show selected file immediately
+            setUploadedDocs((prev) => ({
+                ...prev,
+                [name]: file.name,
+            }));
+
+            // Upload actual file to backend
             await uploadFormFile(file);
         } catch (err) {
-            console.error("Document upload failed:", err);
+            console.error(
+                "Document upload failed:",
+                err
+            );
+
+            setErrorMessage(
+                err?.message ||
+                    "Failed to upload document."
+            );
+
+            // Remove failed upload from UI
+            setUploadedDocs((prev) => {
+                const next = { ...prev };
+                delete next[name];
+                return next;
+            });
         }
     };
+
+    // ---------------------------------------
+    // Document remove
+    // ---------------------------------------
 
     const handleDocumentRemove = (name) => {
         setUploadedDocs((prev) => {
             const next = { ...prev };
+
             delete next[name];
+
             return next;
         });
     };
 
+    // ---------------------------------------
+    // Focus form field
+    // ---------------------------------------
+
     const focusField = (id) => {
-        const el = document.getElementById(id);
-        if (el) {
-            el.scrollIntoView({ behavior: "smooth", block: "center" });
-            el.focus();
+        const element = document.getElementById(id);
+
+        if (!element) return;
+
+        element.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+        });
+
+        element.focus();
+    };
+
+    // ---------------------------------------
+    // Checklist item click
+    // ---------------------------------------
+
+    const handleItemClick = (item) => {
+        if (!item?.id) return;
+
+        focusField(item.id);
+    };
+
+    // ---------------------------------------
+    // Review missing fields
+    // ---------------------------------------
+
+    const handleReviewMissing = () => {
+        if (!formData) return;
+
+        const missingField = (
+            formData.fields || []
+        ).find((field) => {
+            const value = String(
+                values[toFieldId(field.name)] ?? ""
+            ).trim();
+
+            return field.required && !value;
+        });
+
+        if (missingField) {
+            focusField(
+                toFieldId(missingField.name)
+            );
         }
     };
 
-    // Checklist row click -> focus that input in the form
-    const handleItemClick = (item) => focusField(item.id);
+    // ---------------------------------------
+    // Authentication
+    // ---------------------------------------
 
-    // Jump to the first empty required field (works for the form's own ids)
-    const handleReviewMissing = () => {
-        if (!formData) return;
-        const bad = (formData.fields || []).find((f) => {
-            const v = String(values[toFieldId(f.name)] ?? "").trim();
-            return f.required && !v;
-        });
-        if (bad) focusField(toFieldId(bad.name));
-    };
-
-    // Auth handlers
     const handleLoginClick = () => {
         setAuthMode("signin");
         setAuthModalOpen(true);
@@ -153,18 +270,27 @@ export default function MainPageContainer() {
     };
 
     const handleLogout = async () => {
-        await logout();
-        setCurrentUser(null);
+        try {
+            await logout();
+        } catch (err) {
+            console.error("Logout failed:", err);
+        } finally {
+            setCurrentUser(null);
+        }
     };
 
     const handleAuthSuccess = () => {
-        setCurrentUser(getSavedUser());
+        const user = getSavedUser();
+
+        setCurrentUser(user);
         setAuthModalOpen(false);
     };
 
     return (
-        <div className="min-h-screen bg-[#5e51b5] px-4 py-6 sm:px-[6%] sm:py-10 lg:px-[4%] lg:py-12 2xl:px-[3%]">
-            <div className="mx-auto flex w-full max-w-[860px] flex-col gap-[3px] lg:max-w-[1100px] xl:max-w-[1280px] 2xl:max-w-[1480px]">
+        <div className="min-h-screen w-full bg-[#5e51b5]">
+            <div className="flex w-full flex-col gap-[3px]">
+
+                {/* Top navbar + hero + upload */}
                 <TopPanel
                     onAnalyze={handleAnalyze}
                     onRemove={handleRemove}
@@ -175,12 +301,18 @@ export default function MainPageContainer() {
                     onLogout={handleLogout}
                 />
 
+                {/* API / AI error */}
                 {errorMessage && (
                     <div className="flex items-center justify-between rounded-lg border border-red-400/40 bg-red-950/80 p-3.5 text-xs text-red-200">
-                        <span>{errorMessage}</span>
+                        <span>
+                            {errorMessage}
+                        </span>
+
                         <button
                             type="button"
-                            onClick={() => setErrorMessage(null)}
+                            onClick={() =>
+                                setErrorMessage(null)
+                            }
                             className="ml-3 font-semibold text-red-300 hover:text-white"
                         >
                             ✕
@@ -188,33 +320,47 @@ export default function MainPageContainer() {
                     </div>
                 )}
 
-                <div className="grid grid-cols-1 gap-[3px] lg:grid-cols-[1.85fr_1fr]">
+                {/* Main content */}
+                <div className="grid w-full grid-cols-1 gap-[3px] lg:grid-cols-[1.85fr_1fr]">
+
+                    {/* Generated form */}
                     <GeneratedForm
                         key={formKey}
                         formData={formData}
                         values={values}
                         onChange={handleChange}
                         onFieldFocus={handleFieldFocus}
-                        onDocumentUpload={handleDocumentUpload}
-                        onDocumentRemove={handleDocumentRemove}
+                        onDocumentUpload={
+                            handleDocumentUpload
+                        }
+                        onDocumentRemove={
+                            handleDocumentRemove
+                        }
                         aiExplanation={aiExplanation}
                         isExplaining={isExplaining}
                     />
+
+                    {/* AI checklist */}
                     <AiChecklist
                         formData={formData}
                         values={values}
                         uploadedDocs={uploadedDocs}
                         activeId={activeId}
                         onItemClick={handleItemClick}
-                        onReviewMissing={handleReviewMissing}
+                        onReviewMissing={
+                            handleReviewMissing
+                        }
                     />
                 </div>
             </div>
 
+            {/* Authentication modal */}
             <AuthModal
                 isOpen={authModalOpen}
                 mode={authMode}
-                onClose={() => setAuthModalOpen(false)}
+                onClose={() =>
+                    setAuthModalOpen(false)
+                }
                 onSuccess={handleAuthSuccess}
                 onSignin={signin}
                 onSignup={signup}
@@ -222,4 +368,3 @@ export default function MainPageContainer() {
         </div>
     );
 }
-
