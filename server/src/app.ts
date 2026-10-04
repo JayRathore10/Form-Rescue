@@ -1,20 +1,18 @@
 import { authRouter } from "./routes/auth.route";
+import { aiRouter } from "./routes/ai.routes";
 import express  , {Request , Response} from "express";
 
 const app = express();
 
 app.use(express.json());
 
-
-
-
 app.use("/uploads",express.static("uploads"));
 
-app.get("/"  , (req : Request, res : Response)=>{
-  res.send("Hi, Jexts here!")
-})
+app.use("/api/v1/auth",authRouter);
+app.use("/api/v1/ai" , aiRouter);
 
-
-app.use("/api/v1",authRouter);
+app.get("/", (req: Request, res: Response) => {
+  res.send("Jexts server is running!");
+});
 
 export default app;
