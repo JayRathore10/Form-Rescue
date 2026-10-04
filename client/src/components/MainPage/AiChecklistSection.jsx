@@ -1,18 +1,10 @@
-import { toFieldId } from "./GeneratedFormSection";
+import { toFieldId } from "../../utils/formUtils";
 
 const svg = (children, size = 14) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
         {children}
     </svg>
 );
-
-const DEFAULT_ITEMS = [
-    { id: "fullName", label: "Full Name", status: "done" },
-    { id: "dob", label: "Date of Birth", status: "done" },
-    { id: "email", label: "Email Address", status: "done" },
-    { id: "income", label: "Annual Family Income", status: "missing", note: "Required field - not filled" },
-    { id: "incomeCert", label: "Income Certificate", status: "pending", note: "Required document" },
-];
 
 /* ------------------------------------------------------------------ */
 /* Live validation (used only when `formData` is passed in)            */
@@ -68,7 +60,7 @@ const RULES = {
         expected: "Letters only, at least 2 characters",
         check: (v) => {
             if (/\d/.test(v)) return { message: "Name can't contain numbers.", fix: "Remove the digits." };
-            if (!/^[A-Za-z\u00C0-\u024F\u0900-\u097F][A-Za-z\u00C0-\u024F\u0900-\u097F\s.'-]*$/.test(v))
+            if (!/^[\p{L}][\p{L}\s.'-]*$/u.test(v))
                 return { message: "Name has invalid characters.", fix: "Use letters, spaces, . ' or - only." };
             if (v.length < 2) return { message: "Name is too short.", fix: "Enter at least 2 letters." };
             return null;
@@ -204,7 +196,7 @@ function ProgressRing({ percent }) {
 }
 
 export default function AiChecklist({
-    items: itemsProp = DEFAULT_ITEMS,
+    items: itemsProp = [],
     formData = null, // backend payload; when present the checklist is built from it
     values = {}, // { [fieldId]: typed value }
     uploadedDocs = {}, // { [docName]: fileName }
@@ -234,87 +226,98 @@ export default function AiChecklist({
                 </div>
             </div>
 
-            {/* Progress card */}
-            <div className="mt-4 flex items-center gap-4 rounded-xl border border-white/10 bg-[#15144a] p-3.5">
-                <ProgressRing percent={percent} />
-                <div className="flex-1">
-                    <div className="mb-2 flex items-center justify-between text-[11px]">
-                        <span className="font-semibold">Form Completion</span>
-                        <span className="text-white/60">{done} / {total} completed</span>
-                    </div>
-                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-                        <div
-                            className="h-full rounded-full bg-emerald-400 transition-all duration-500"
-                            style={{ width: `${percent}%` }}
-                        />
-                    </div>
-                    {errorCount > 0 && (
-                        <p className="mt-2 text-[10px] text-red-300">
-                            {errorCount} {errorCount === 1 ? "error" : "errors"} to fix
-                        </p>
-                    )}
+            {items.length === 0 ? (
+                <div className="mt-4 flex flex-col items-center justify-center rounded-xl border border-white/10 bg-[#15144a] py-14 text-center text-white/50">
+                    <p className="text-xs font-semibold text-white/80">Checklist Ready</p>
+                    <p className="mt-1 max-w-[220px] text-[11px] leading-relaxed text-white/50">
+                        Field completion and required documents will appear here once a form is scanned.
+                    </p>
                 </div>
-            </div>
+            ) : (
+                <>
+                    {/* Progress card */}
+                    <div className="mt-4 flex items-center gap-4 rounded-xl border border-white/10 bg-[#15144a] p-3.5">
+                        <ProgressRing percent={percent} />
+                        <div className="flex-1">
+                            <div className="mb-2 flex items-center justify-between text-[11px]">
+                                <span className="font-semibold">Form Completion</span>
+                                <span className="text-white/60">{done} / {total} completed</span>
+                            </div>
+                            <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                                <div
+                                    className="h-full rounded-full bg-emerald-400 transition-all duration-500"
+                                    style={{ width: `${percent}%` }}
+                                />
+                            </div>
+                            {errorCount > 0 && (
+                                <p className="mt-2 text-[10px] text-red-300">
+                                    {errorCount} {errorCount === 1 ? "error" : "errors"} to fix
+                                </p>
+                            )}
+                        </div>
+                    </div>
 
-            {/* Items */}
-            <ul aria-live="polite" className="mt-3 divide-y divide-white/10 rounded-xl border border-white/10 bg-[#15144a] px-3.5">
-                {items.map((item) => {
-                    const s = STATUS[item.status] ?? STATUS.pending;
-                    const detailed = item.expected !== undefined; // true for rows built from formData
-                    const hasValue = String(item.value ?? "").trim() !== "";
-                    return (
-                        <li key={item.id} className={item.id === activeId ? "-mx-3.5 bg-white/5 px-3.5" : ""}>
-                            <button
-                                type="button"
-                                onClick={() => onItemClick?.(item)}
-                                className="flex w-full items-start gap-3 py-2.5 text-left"
-                            >
-                                <span className="mt-0.5">{s.icon}</span>
-                                <div className="min-w-0 flex-1">
-                                    <p className="truncate text-xs font-semibold">{item.label}</p>
+                    {/* Items */}
+                    <ul aria-live="polite" className="mt-3 divide-y divide-white/10 rounded-xl border border-white/10 bg-[#15144a] px-3.5">
+                        {items.map((item) => {
+                            const s = STATUS[item.status] ?? STATUS.pending;
+                            const detailed = item.expected !== undefined; // true for rows built from formData
+                            const hasValue = String(item.value ?? "").trim() !== "";
+                            return (
+                                <li key={item.id} className={item.id === activeId ? "-mx-3.5 bg-white/5 px-3.5" : ""}>
+                                    <button
+                                        type="button"
+                                        onClick={() => onItemClick?.(item)}
+                                        className="flex w-full items-start gap-3 py-2.5 text-left"
+                                    >
+                                        <span className="mt-0.5">{s.icon}</span>
+                                        <div className="min-w-0 flex-1">
+                                            <p className="truncate text-xs font-semibold">{item.label}</p>
 
-                                    {detailed ? (
-                                        <div className="mt-1 space-y-1">
-                                            <p className="text-[10px] text-white/50">Needs: {item.expected}</p>
-                                            <p className="truncate text-[11px]">
-                                                <span className="text-white/50">{item.kind === "document" ? "File: " : "Value: "}</span>
-                                                {hasValue ? (
-                                                    <span className="text-white/90">{String(item.value)}</span>
-                                                ) : (
-                                                    <span className="italic text-amber-300/90">
-                                                        {item.kind === "document" ? "Not uploaded yet" : "null - not filled yet"}
-                                                    </span>
-                                                )}
-                                            </p>
-                                            {item.status === "error" && (
-                                                <div className="rounded-md border border-red-400/30 bg-red-500/10 px-2 py-1.5 text-[11px]">
-                                                    <p className="font-medium text-red-300">{item.message}</p>
-                                                    <p className="mt-0.5 text-white/70">Fix: {item.fix}</p>
+                                            {detailed ? (
+                                                <div className="mt-1 space-y-1">
+                                                    <p className="text-[10px] text-white/50">Needs: {item.expected}</p>
+                                                    <p className="truncate text-[11px]">
+                                                        <span className="text-white/50">{item.kind === "document" ? "File: " : "Value: "}</span>
+                                                        {hasValue ? (
+                                                            <span className="text-white/90">{String(item.value)}</span>
+                                                        ) : (
+                                                            <span className="italic text-amber-300/90">
+                                                                {item.kind === "document" ? "Not uploaded yet" : "null - not filled yet"}
+                                                            </span>
+                                                        )}
+                                                    </p>
+                                                    {item.status === "error" && (
+                                                        <div className="rounded-md border border-red-400/30 bg-red-500/10 px-2 py-1.5 text-[11px]">
+                                                            <p className="font-medium text-red-300">{item.message}</p>
+                                                            <p className="mt-0.5 text-white/70">Fix: {item.fix}</p>
+                                                        </div>
+                                                    )}
                                                 </div>
+                                            ) : (
+                                                <p className={`text-[10px] ${s.noteClass}`}>{item.note ?? s.note}</p>
                                             )}
                                         </div>
-                                    ) : (
-                                        <p className={`text-[10px] ${s.noteClass}`}>{item.note ?? s.note}</p>
-                                    )}
-                                </div>
-                                <span className={`shrink-0 rounded-md border px-2.5 py-0.5 text-[10px] font-medium ${s.badgeClass}`}>
-                                    {s.badge}
-                                </span>
-                            </button>
-                        </li>
-                    );
-                })}
-            </ul>
+                                        <span className={`shrink-0 rounded-md border px-2.5 py-0.5 text-[10px] font-medium ${s.badgeClass}`}>
+                                            {s.badge}
+                                        </span>
+                                    </button>
+                                </li>
+                            );
+                        })}
+                    </ul>
 
-            {/* CTA */}
-            <button
-                type="button"
-                onClick={onReviewMissing}
-                className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-[#25246b] py-2.5 text-xs font-semibold transition hover:bg-[#2e2d7d]"
-            >
-                {svg(<><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></>, 14)}
-                Review Missing Items
-            </button>
+                    {/* CTA */}
+                    <button
+                        type="button"
+                        onClick={onReviewMissing}
+                        className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-[#25246b] py-2.5 text-xs font-semibold transition hover:bg-[#2e2d7d]"
+                    >
+                        {svg(<><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></>, 14)}
+                        Review Missing Items
+                    </button>
+                </>
+            )}
         </aside>
     );
 }

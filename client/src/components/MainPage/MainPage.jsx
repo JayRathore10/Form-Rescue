@@ -6,38 +6,48 @@
  */
 import { useState } from "react";
 import AiChecklist from "./AiChecklistSection";
-import GeneratedForm, { toFieldId } from "./GeneratedFormSection";
+import GeneratedForm from "./GeneratedFormSection";
+import { toFieldId } from "../../utils/formUtils";
 import TopPanel from "./TopPanel";
+import AuthModal from "./AuthModal";
+import {
+    analyzeFormFile,
+    uploadFormFile,
+    getFieldAiExplanation,
+} from "../../services/mainpage";
+import {
+    signin,
+    signup,
+    logout,
+    getSavedUser,
+} from "../../services/auth";
 
-// Example of what your backend returns (used by the stub below).
-const SAMPLE_FORM = {
-    title: "Application Form",
-    fields: [
-        { name: "Name", type: "text", required: true, value: "" },
-        { name: "Date of Birth", type: "date", required: true, value: "" },
-        { name: "Address", type: "textarea", required: true, value: "" },
-    ],
-    documents: ["Aadhaar Card", "Photograph", "Signature"],
-};
-
-// >>> REPLACE THE BODY OF THIS FUNCTION with your existing backend call.
-// It receives the File and must return the JSON shape shown in SAMPLE_FORM.
-async function analyzeForm(file) {
-    return SAMPLE_FORM;
-}
-
-export default function MainPageContainer({ top, left, right }) {
+export default function MainPageContainer() {
     const [formData, setFormData] = useState(null); // backend payload
     const [formKey, setFormKey] = useState(0); // remounts the form on a new scan
     const [values, setValues] = useState({}); // { [fieldId]: typed value }
     const [uploadedDocs, setUploadedDocs] = useState({}); // { [docName]: fileName }
     const [activeId, setActiveId] = useState(null);
     const [isUploading, setIsUploading] = useState(false);
+    const [errorMessage, setErrorMessage] = useState(null);
+
+    // Auth state
+    const [currentUser, setCurrentUser] = useState(() => getSavedUser());
+    const [authModalOpen, setAuthModalOpen] = useState(false);
+    const [authMode, setAuthMode] = useState("signin");
+
+    // AI Explanation state
+    const [aiExplanation, setAiExplanation] = useState(null);
+    const [isExplaining, setIsExplaining] = useState(false);
 
     const handleAnalyze = async (file) => {
         setIsUploading(true);
+        setErrorMessage(null);
         try {
-            const data = await analyzeForm(file);
+            const data = await analyzeFormFile(file);
+            if (!data) {
+                throw new Error("No form structure returned by backend");
+            }
             const initial = {};
             (data.fields || []).forEach((f) => {
                 initial[toFieldId(f.name)] = f.value ?? "";
@@ -49,6 +59,9 @@ export default function MainPageContainer({ top, left, right }) {
             setFormKey((k) => k + 1);
         } catch (err) {
             console.error("Analyze failed:", err);
+            setErrorMessage(
+                err?.message || "Failed to analyze form. Please ensure the backend is running."
+            );
         } finally {
             setIsUploading(false);
         }
@@ -59,10 +72,53 @@ export default function MainPageContainer({ top, left, right }) {
         setValues({});
         setUploadedDocs({});
         setActiveId(null);
+        setErrorMessage(null);
+        setAiExplanation(null);
         setFormKey((k) => k + 1);
     };
 
     const handleChange = (id, value) => setValues((prev) => ({ ...prev, [id]: value }));
+
+    const handleFieldFocus = async (field) => {
+        setActiveId(field.id);
+        if (!field?.label && !field?.name) return;
+        setIsExplaining(true);
+        try {
+            const text = await getFieldAiExplanation({
+                fieldName: field.label || field.name,
+                fieldType: field.type,
+                formTitle: formData?.title || "Application Form",
+                currentValue: values[field.id] || "",
+            });
+            setAiExplanation({
+                fieldId: field.id,
+                fieldName: field.label || field.name,
+                text,
+            });
+        } catch (err) {
+            console.warn("AI explanation request failed:", err);
+        } finally {
+            setIsExplaining(false);
+        }
+    };
+
+    const handleDocumentUpload = async (name, file) => {
+        try {
+            setUploadedDocs((prev) => ({ ...prev, [name]: file.name }));
+            // Also upload file to backend server storage
+            await uploadFormFile(file);
+        } catch (err) {
+            console.error("Document upload failed:", err);
+        }
+    };
+
+    const handleDocumentRemove = (name) => {
+        setUploadedDocs((prev) => {
+            const next = { ...prev };
+            delete next[name];
+            return next;
+        });
+    };
 
     const focusField = (id) => {
         const el = document.getElementById(id);
@@ -85,32 +141,64 @@ export default function MainPageContainer({ top, left, right }) {
         if (bad) focusField(toFieldId(bad.name));
     };
 
+    // Auth handlers
+    const handleLoginClick = () => {
+        setAuthMode("signin");
+        setAuthModalOpen(true);
+    };
+
+    const handleSignupClick = () => {
+        setAuthMode("signup");
+        setAuthModalOpen(true);
+    };
+
+    const handleLogout = async () => {
+        await logout();
+        setCurrentUser(null);
+    };
+
+    const handleAuthSuccess = () => {
+        setCurrentUser(getSavedUser());
+        setAuthModalOpen(false);
+    };
+
     return (
         <div className="min-h-screen bg-[#5e51b5] px-4 py-6 sm:px-[6%] sm:py-10 lg:px-[4%] lg:py-12 2xl:px-[3%]">
             <div className="mx-auto flex w-full max-w-[860px] flex-col gap-[3px] lg:max-w-[1100px] xl:max-w-[1280px] 2xl:max-w-[1480px]">
-
                 <TopPanel
                     onAnalyze={handleAnalyze}
                     onRemove={handleRemove}
                     isUploading={isUploading}
+                    currentUser={currentUser}
+                    onLogin={handleLoginClick}
+                    onSignup={handleSignupClick}
+                    onLogout={handleLogout}
                 />
+
+                {errorMessage && (
+                    <div className="flex items-center justify-between rounded-lg border border-red-400/40 bg-red-950/80 p-3.5 text-xs text-red-200">
+                        <span>{errorMessage}</span>
+                        <button
+                            type="button"
+                            onClick={() => setErrorMessage(null)}
+                            className="ml-3 font-semibold text-red-300 hover:text-white"
+                        >
+                            ✕
+                        </button>
+                    </div>
+                )}
+
                 <div className="grid grid-cols-1 gap-[3px] lg:grid-cols-[1.85fr_1fr]">
                     <GeneratedForm
                         key={formKey}
                         formData={formData}
                         values={values}
                         onChange={handleChange}
-                        onFieldFocus={(f) => setActiveId(f.id)}
-                        onDocumentUpload={(name, file) =>
-                            setUploadedDocs((prev) => ({ ...prev, [name]: file.name }))
-                        }
-                        onDocumentRemove={(name) =>
-                            setUploadedDocs((prev) => {
-                                const next = { ...prev };
-                                delete next[name];
-                                return next;
-                            })
-                        }
+                        onFieldFocus={handleFieldFocus}
+                        onDocumentUpload={handleDocumentUpload}
+                        onDocumentRemove={handleDocumentRemove}
+                        aiExplanation={aiExplanation}
+                        isExplaining={isExplaining}
                     />
                     <AiChecklist
                         formData={formData}
@@ -122,6 +210,16 @@ export default function MainPageContainer({ top, left, right }) {
                     />
                 </div>
             </div>
+
+            <AuthModal
+                isOpen={authModalOpen}
+                mode={authMode}
+                onClose={() => setAuthModalOpen(false)}
+                onSuccess={handleAuthSuccess}
+                onSignin={signin}
+                onSignup={signup}
+            />
         </div>
     );
 }
+

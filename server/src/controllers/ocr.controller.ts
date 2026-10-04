@@ -21,8 +21,13 @@ export const extractFormText = async (
       return;
     }
 
-    const uploadsDir = path.resolve(process.cwd(), "src/uploads");
-    const imagePath = path.join(uploadsDir, filename);
+    const primaryUploadsDir = path.resolve(process.cwd(), "uploads");
+    const fallbackUploadsDir = path.resolve(process.cwd(), "src/uploads");
+    
+    let imagePath = path.join(primaryUploadsDir, filename);
+    if (!fs.existsSync(imagePath)) {
+      imagePath = path.join(fallbackUploadsDir, filename);
+    }
 
     console.log("📁 Image path:", imagePath);
 

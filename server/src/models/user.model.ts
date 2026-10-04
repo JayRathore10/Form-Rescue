@@ -20,7 +20,7 @@ const userSchema=new mongoose.Schema<IUser>({
         type:String,
         required:[true,'email is required'],
         unique:[true,'already exist'],
-        lowerCase:true,
+        lowercase:true,
         match : [/\S+@\S+\.\S+/, 'Please fill a valid email address'],
         index:true,
     },

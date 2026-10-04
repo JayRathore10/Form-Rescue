@@ -1,6 +1,7 @@
 import axios from "axios";
+import { OLLAMA_URL as ENV_OLLAMA_URL } from "../configs/env.config";
 
-const OLLAMA_URL = "http://localhost:11434/api/generate";
+const OLLAMA_URL = ENV_OLLAMA_URL || "http://localhost:11434/api/generate";
 const MODEL = "gemma4:e2b";
 
 export interface FormField {

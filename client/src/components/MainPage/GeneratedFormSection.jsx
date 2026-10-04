@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { toFieldId } from "../../utils/formUtils";
 
 const icon = (children) => (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -22,29 +23,6 @@ const ICONS = {
     check: icon(<polyline points="20 6 9 17 4 12" />),
 };
 
-const DEFAULT_SECTIONS = [
-    {
-        title: "1. Personal Information",
-        fields: [
-            { id: "fullName", label: "Full Name", placeholder: "Enter your full name", icon: "user", required: true },
-            { id: "dob", label: "Date of Birth", placeholder: "DD / MM / YYYY", icon: "calendar", required: true },
-            { id: "email", label: "Email Address", placeholder: "you@example.com", icon: "mail", type: "email", required: true, full: true },
-            { id: "phone", label: "Phone Number", placeholder: "+91 98765 43210", icon: "phone", type: "tel", required: true },
-            { id: "address", label: "Address", placeholder: "Enter your complete address", icon: "pin", required: true },
-        ],
-    },
-    {
-        title: "2. Financial Details",
-        fields: [
-            { id: "income", label: "Annual Family Income", placeholder: "Enter amount in INR", icon: "rupee", required: true, full: true },
-        ],
-    },
-];
-
-// "Date of Birth" -> "date-of-birth" (this is the id your parent receives in onChange / uses in values)
-export const toFieldId = (name = "") =>
-    name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-
 // Pick an icon from the backend field's type / name
 const pickIcon = (name = "", type = "") => {
     const n = name.toLowerCase();
@@ -58,24 +36,29 @@ const pickIcon = (name = "", type = "") => {
 };
 
 // Backend payload -> the same `sections` shape the component already uses
-const sectionsFromBackend = (formData) => [
-    {
-        title: formData.title ? `1. ${formData.title}` : "1. Details",
-        fields: (formData.fields || []).map((f) => ({
-            id: toFieldId(f.name),
-            label: f.name,
-            type: f.type === "textarea" ? "textarea" : f.type || "text",
-            placeholder: f.type === "date" ? "" : `Enter ${String(f.name).toLowerCase()}`,
-            icon: pickIcon(f.name, f.type),
-            required: !!f.required,
-            full: f.type === "textarea",
-            value: f.value ?? "",
-        })),
-    },
-];
+const sectionsFromBackend = (formData) => {
+    if (!formData || !formData.fields || formData.fields.length === 0) {
+        return [];
+    }
+    return [
+        {
+            title: formData.title ? `1. ${formData.title}` : "1. Details",
+            fields: (formData.fields || []).map((f) => ({
+                id: toFieldId(f.name),
+                label: f.name,
+                type: f.type === "textarea" ? "textarea" : f.type || "text",
+                placeholder: f.type === "date" ? "" : `Enter ${String(f.name).toLowerCase()}`,
+                icon: pickIcon(f.name, f.type),
+                required: !!f.required,
+                full: f.type === "textarea",
+                value: f.value ?? "",
+            })),
+        },
+    ];
+};
 
 export default function GeneratedForm({
-    sections = DEFAULT_SECTIONS,
+    sections = [],
     values = {},
     onChange, // (fieldId, value) => void
     onFieldFocus, // (field) => void  -> trigger the AI explanation
@@ -83,8 +66,10 @@ export default function GeneratedForm({
     formData = null, // backend payload: { title, fields: [{name,type,required,value}], documents: [names] }
     onDocumentUpload, // (docName, File) => void
     onDocumentRemove, // (docName) => void
+    aiExplanation = null,
+    isExplaining = false,
 }) {
-    // If the backend payload is present it drives the form, otherwise the original sections are used
+    // If the backend payload is present it drives the form, otherwise the sections prop is used
     const resolvedSections = formData ? sectionsFromBackend(formData) : sections;
     const documents = formData?.documents ?? [];
 
@@ -178,171 +163,202 @@ export default function GeneratedForm({
 
             {/* Form body */}
             <div className="mt-4 rounded-xl border border-white/10 bg-[#15144a] p-4">
-                <div className="space-y-5">
-                    {resolvedSections.map((section) => (
-                        <div key={section.title}>
-                            <h4 className="mb-3 text-[13px] font-semibold text-[#8f86ff]">
-                                {section.title}
-                            </h4>
-
-                            <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
-                                {section.fields.map((f) => (
-                                    <div key={f.id} className={f.full ? "sm:col-span-2" : ""}>
-                                        <label
-                                            htmlFor={f.id}
-                                            className="mb-1.5 block text-[11px] font-medium text-white/90"
-                                        >
-                                            {f.label}
-                                            {f.required && <span className="ml-0.5 text-red-400">*</span>}
-                                        </label>
-
-                                        <div className="relative">
-                                            <span
-                                                className={
-                                                    f.type === "textarea"
-                                                        ? "pointer-events-none absolute left-3 top-3 text-white/50"
-                                                        : "pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/50"
-                                                }
-                                            >
-                                                {ICONS[f.icon]}
-                                            </span>
-
-                                            {f.type === "textarea" ? (
-                                                <textarea
-                                                    id={f.id}
-                                                    rows={3}
-                                                    value={currentValues[f.id] ?? f.value ?? ""}
-                                                    placeholder={f.placeholder}
-                                                    onChange={(e) => handleChange(f.id, e.target.value)}
-                                                    onFocus={() => onFieldFocus?.(f)}
-                                                    className="w-full resize-none rounded-lg border border-white/10 bg-[#0f0e3a] py-2.5 pl-9 pr-3 text-xs text-white placeholder:text-white/40 outline-none transition focus:border-[#8f86ff] focus:ring-1 focus:ring-[#8f86ff]"
-                                                />
-                                            ) : (
-                                                <input
-                                                    id={f.id}
-                                                    type={f.type || "text"}
-                                                    value={currentValues[f.id] ?? f.value ?? ""}
-                                                    placeholder={f.placeholder}
-                                                    onChange={(e) => handleChange(f.id, e.target.value)}
-                                                    onFocus={() => onFieldFocus?.(f)}
-                                                    className="w-full rounded-lg border border-white/10 bg-[#0f0e3a] py-2.5 pl-9 pr-3 text-xs text-white placeholder:text-white/40 outline-none transition [color-scheme:dark] focus:border-[#8f86ff] focus:ring-1 focus:ring-[#8f86ff]"
-                                                />
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    ))}
-
-                    {/* Required documents (only when the backend sends them) */}
-                    {documents.length > 0 && (
-                        <div>
-                            <div className="mb-3 flex items-center justify-between">
-                                <h4 className="text-[13px] font-semibold text-[#8f86ff]">
-                                    {resolvedSections.length + 1}. Required Documents
-                                </h4>
-                                <span className="text-[11px] text-white/60">
-                                    {uploadedCount} / {documents.length} uploaded
-                                </span>
-                            </div>
-
-                            <ul className="divide-y divide-white/10 rounded-lg border border-white/10 bg-[#0f0e3a] px-3">
-                                {documents.map((docName) => {
-                                    const up = uploads[docName];
-                                    return (
-                                        <li key={docName} className="flex items-center gap-3 py-2.5">
-                                            <span
-                                                className={
-                                                    up
-                                                        ? "flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white"
-                                                        : "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/15 text-white/50"
-                                                }
-                                            >
-                                                {up ? ICONS.check : ICONS.file}
-                                            </span>
-
-                                            <div className="min-w-0 flex-1">
-                                                <p className="truncate text-xs font-semibold">{docName}</p>
-                                                <p className="truncate text-[10px] text-white/50">
-                                                    {up ? up.file.name : "Not uploaded yet"}
-                                                </p>
-                                            </div>
-
-                                            <input
-                                                ref={(el) => (docInputs.current[docName] = el)}
-                                                type="file"
-                                                accept="image/*,application/pdf"
-                                                onChange={(e) => handleDocPick(docName, e)}
-                                                className="hidden"
-                                            />
-
-                                            {up ? (
-                                                <div className="flex shrink-0 items-center gap-1.5">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setPreviewDoc(docName)}
-                                                        title="Preview"
-                                                        aria-label={`Preview ${docName}`}
-                                                        className="flex h-7 w-7 items-center justify-center rounded-md border border-white/10 bg-[#25246b] text-white transition hover:bg-[#2e2d7d]"
-                                                    >
-                                                        {ICONS.eye}
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => docInputs.current[docName]?.click()}
-                                                        title="Replace"
-                                                        aria-label={`Replace ${docName}`}
-                                                        className="flex h-7 w-7 items-center justify-center rounded-md border border-white/10 bg-[#25246b] text-white transition hover:bg-[#2e2d7d]"
-                                                    >
-                                                        {ICONS.upload}
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleDocRemove(docName)}
-                                                        title="Remove"
-                                                        aria-label={`Remove ${docName}`}
-                                                        className="flex h-7 w-7 items-center justify-center rounded-md border border-red-400/30 bg-red-500/10 text-red-300 transition hover:bg-red-500/20"
-                                                    >
-                                                        {ICONS.x}
-                                                    </button>
-                                                </div>
-                                            ) : (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => docInputs.current[docName]?.click()}
-                                                    className="flex shrink-0 items-center gap-1.5 rounded-md border border-white/10 bg-[#25246b] px-3 py-1.5 text-[11px] font-medium transition hover:bg-[#2e2d7d]"
-                                                >
-                                                    {ICONS.upload}
-                                                    Upload
-                                                </button>
-                                            )}
-                                        </li>
-                                    );
-                                })}
-                            </ul>
-                        </div>
-                    )}
-                </div>
-
-                {/* Footer */}
-                <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="flex items-center gap-2 text-[11px] text-white/60">
-                        <span className="text-amber-300">
+                {(isExplaining || aiExplanation) && (
+                    <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-[#6c63ff]/40 bg-[#6c63ff]/10 p-3 text-xs text-white/90">
+                        <span className="mt-0.5 text-amber-300">
                             {icon(<><path d="M9 18h6" /><path d="M10 22h4" /><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.3h6c0-1 .4-1.8 1-2.3A7 7 0 0 0 12 2z" /></>)}
                         </span>
-                        Need help? Click on any field for an AI explanation.
-                    </p>
+                        <div>
+                            {isExplaining ? (
+                                <p className="italic text-white/60">Gemma is analyzing this field...</p>
+                            ) : (
+                                <>
+                                    <p className="font-semibold text-[#8f86ff]">{aiExplanation.fieldName} AI Tip:</p>
+                                    <p className="mt-0.5 text-[11px] text-white/80">{aiExplanation.text}</p>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                )}
+                {resolvedSections.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-14 text-center text-white/50">
+                        <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl border border-white/10 bg-[#1c1b55] text-[#8f86ff]">
+                            {ICONS.file}
+                        </div>
+                        <p className="text-sm font-semibold text-white/90">No Form Scanned Yet</p>
+                        <p className="mt-1.5 max-w-[320px] text-xs leading-relaxed text-white/60">
+                            Upload a photo or scan of your form above and click &quot;Analyze form&quot;. All fields and documents will be extracted here automatically.
+                        </p>
+                    </div>
+                ) : (
+                    <>
+                        <div className="space-y-5">
+                            {resolvedSections.map((section) => (
+                                <div key={section.title}>
+                                    <h4 className="mb-3 text-[13px] font-semibold text-[#8f86ff]">
+                                        {section.title}
+                                    </h4>
 
-                    <button
-                        type="button"
-                        onClick={onContinue}
-                        className="flex items-center justify-center gap-2 rounded-lg bg-[#6c63ff] px-6 py-2.5 text-xs font-semibold text-white transition hover:bg-[#7b73ff]"
-                    >
-                        Continue
-                        {icon(<><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></>)}
-                    </button>
-                </div>
+                                    <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
+                                        {section.fields.map((f) => (
+                                            <div key={f.id} className={f.full ? "sm:col-span-2" : ""}>
+                                                <label
+                                                    htmlFor={f.id}
+                                                    className="mb-1.5 block text-[11px] font-medium text-white/90"
+                                                >
+                                                    {f.label}
+                                                    {f.required && <span className="ml-0.5 text-red-400">*</span>}
+                                                </label>
+
+                                                <div className="relative">
+                                                    <span
+                                                        className={
+                                                            f.type === "textarea"
+                                                                ? "pointer-events-none absolute left-3 top-3 text-white/50"
+                                                                : "pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/50"
+                                                        }
+                                                    >
+                                                        {ICONS[f.icon]}
+                                                    </span>
+
+                                                    {f.type === "textarea" ? (
+                                                        <textarea
+                                                            id={f.id}
+                                                            rows={3}
+                                                            value={currentValues[f.id] ?? f.value ?? ""}
+                                                            placeholder={f.placeholder}
+                                                            onChange={(e) => handleChange(f.id, e.target.value)}
+                                                            onFocus={() => onFieldFocus?.(f)}
+                                                            className="w-full resize-none rounded-lg border border-white/10 bg-[#0f0e3a] py-2.5 pl-9 pr-3 text-xs text-white placeholder:text-white/40 outline-none transition focus:border-[#8f86ff] focus:ring-1 focus:ring-[#8f86ff]"
+                                                        />
+                                                    ) : (
+                                                        <input
+                                                            id={f.id}
+                                                            type={f.type || "text"}
+                                                            value={currentValues[f.id] ?? f.value ?? ""}
+                                                            placeholder={f.placeholder}
+                                                            onChange={(e) => handleChange(f.id, e.target.value)}
+                                                            onFocus={() => onFieldFocus?.(f)}
+                                                            className="w-full rounded-lg border border-white/10 bg-[#0f0e3a] py-2.5 pl-9 pr-3 text-xs text-white placeholder:text-white/40 outline-none transition [color-scheme:dark] focus:border-[#8f86ff] focus:ring-1 focus:ring-[#8f86ff]"
+                                                        />
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+
+                            {/* Required documents (only when the backend sends them) */}
+                            {documents.length > 0 && (
+                                <div>
+                                    <div className="mb-3 flex items-center justify-between">
+                                        <h4 className="text-[13px] font-semibold text-[#8f86ff]">
+                                            {resolvedSections.length + 1}. Required Documents
+                                        </h4>
+                                        <span className="text-[11px] text-white/60">
+                                            {uploadedCount} / {documents.length} uploaded
+                                        </span>
+                                    </div>
+
+                                    <ul className="divide-y divide-white/10 rounded-lg border border-white/10 bg-[#0f0e3a] px-3">
+                                        {documents.map((docName) => {
+                                            const up = uploads[docName];
+                                            return (
+                                                <li key={docName} className="flex items-center gap-3 py-2.5">
+                                                    <span
+                                                        className={
+                                                            up
+                                                                ? "flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white"
+                                                                : "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/15 text-white/50"
+                                                        }
+                                                    >
+                                                        {up ? ICONS.check : ICONS.file}
+                                                    </span>
+
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="truncate text-xs font-semibold">{docName}</p>
+                                                        <p className="truncate text-[10px] text-white/50">
+                                                            {up ? up.file.name : "Not uploaded yet"}
+                                                        </p>
+                                                    </div>
+
+                                                    <input
+                                                        ref={(el) => (docInputs.current[docName] = el)}
+                                                        type="file"
+                                                        accept="image/*,application/pdf"
+                                                        onChange={(e) => handleDocPick(docName, e)}
+                                                        className="hidden"
+                                                    />
+
+                                                    {up ? (
+                                                        <div className="flex shrink-0 items-center gap-1.5">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setPreviewDoc(docName)}
+                                                                title="Preview"
+                                                                aria-label={`Preview ${docName}`}
+                                                                className="flex h-7 w-7 items-center justify-center rounded-md border border-white/10 bg-[#25246b] text-white transition hover:bg-[#2e2d7d]"
+                                                            >
+                                                                {ICONS.eye}
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => docInputs.current[docName]?.click()}
+                                                                title="Replace"
+                                                                aria-label={`Replace ${docName}`}
+                                                                className="flex h-7 w-7 items-center justify-center rounded-md border border-white/10 bg-[#25246b] text-white transition hover:bg-[#2e2d7d]"
+                                                            >
+                                                                {ICONS.upload}
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleDocRemove(docName)}
+                                                                title="Remove"
+                                                                aria-label={`Remove ${docName}`}
+                                                                className="flex h-7 w-7 items-center justify-center rounded-md border border-red-400/30 bg-red-500/10 text-red-300 transition hover:bg-red-500/20"
+                                                            >
+                                                                {ICONS.x}
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => docInputs.current[docName]?.click()}
+                                                            className="flex shrink-0 items-center gap-1.5 rounded-md border border-white/10 bg-[#25246b] px-3 py-1.5 text-[11px] font-medium transition hover:bg-[#2e2d7d]"
+                                                        >
+                                                            {ICONS.upload}
+                                                            Upload
+                                                        </button>
+                                                    )}
+                                                </li>
+                                            );
+                                        })}
+                                    </ul>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <p className="flex items-center gap-2 text-[11px] text-white/60">
+                                <span className="text-amber-300">
+                                    {icon(<><path d="M9 18h6" /><path d="M10 22h4" /><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.3h6c0-1 .4-1.8 1-2.3A7 7 0 0 0 12 2z" /></>)}
+                                </span>
+                                Need help? Click on any field for an AI explanation.
+                            </p>
+
+                            <button
+                                type="button"
+                                onClick={onContinue}
+                                className="flex items-center justify-center gap-2 rounded-lg bg-[#6c63ff] px-6 py-2.5 text-xs font-semibold text-white transition hover:bg-[#7b73ff]"
+                            >
+                                Continue
+                                {icon(<><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></>)}
+                            </button>
+                        </div>
+                    </>
+                )}
             </div>
 
             {/* Document preview modal (opens from the eye icon) */}
