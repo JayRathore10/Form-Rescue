@@ -19,16 +19,12 @@ const storage=multer.diskStorage({
     filename:(_req,file,cb)=>{
      const uniqueName=`${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname)}`;      
       cb(null,uniqueName);
+    }});
+
+
+    const fileFilter:multer.Options['fileFilter']=(_req,file,cb)=>{
+        cb(null,true);
     }
-})
-
-
-//fileFilter give the type to us 
-const fileFilter:multer.Options['fileFilter']=(_req,file,cb)=>{
-    cb(null,true);
-}
-
-
 
 //max 50 mb not more than 50 mb
 export const upload=multer({
@@ -38,13 +34,3 @@ export const upload=multer({
         fileSize:50*1024*1024
     },
 })
-
-
-
-
-//  if (file.mimetype.startsWith("image/")) {
-//         cb(null, true);
-//     } else {
-//         cb(new Error("Only image files are allowed"));
-//     }  
-//    console.log(req.file);
